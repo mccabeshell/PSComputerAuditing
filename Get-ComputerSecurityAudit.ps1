@@ -1,11 +1,11 @@
-﻿Function Get-ComputerSecurityAudit
+Function Get-ComputerSecurityAudit
 {
 
     [CmdletBinding()]
     Param
     (
        [Parameter(Position=0)]
-       [string]$ComputerName = 'localhost'
+       [string[]]$ComputerName = 'localhost'
 
     )
 
@@ -17,10 +17,10 @@
             [string]$ComputerName
             [string]$LastBootUpTime = ''
             [string]$OperatingSystem = ''
+            [sbyte]$LicenseStatus = -1            
             [string]$PSVersion = ''
-            #-1 = Information Unavailable
             [sbyte]$SMB1Enabled = -1
-            [sbyte]$LicenseStatus = -1
+            
 
 
         }
@@ -57,8 +57,9 @@
             Try
             {
 
-                $ComputerAudit.LicenseStatus = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -ErrorAction Stop |
-                    Where-Object {$_.PartialProductKey} |
+                # Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
+                $ComputerAudit.LicenseStatus = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop |
+                    #Where-Object { ($_.PartialProductKey) -and ($_.ApplicationID -eq "55c92734-d682-4d71-983e-d6ec3f16059f") } |
                         Select-Object -ExpandProperty LicenseStatus
 
             }
@@ -92,6 +93,8 @@
             ##############################################
             # Step 3 - Get information from the Registry #
             ##############################################
+
+            $RemoteRegError = 0
             
             # Check RemoteRegistry Service
             Try
@@ -99,77 +102,83 @@
             
                 $RRService = Get-Service RemoteRegistry -ComputerName $Computer -ErrorAction Stop
             
-                If ( $RRService.Status -ne 'Running' )
-                {
-                
-                    Write-Warning "Remote registry service on computer '$Computer' is not running."
-                
-                }
-
             }
             Catch
             {
 
-                Write-Error "Unable to get RemoteRegistry service for computer '$Computer'."
-
+                $RemoteRegError = 1
+                                
             }
 
-            
-            # Open the registry
-            Try
+
+
+            If ( ($RRService.Status -eq 'Running') -and ($RemoteRegError -eq 0) )
             {
-
-                $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $Computer)
-
-            }
-            Catch
-            {
-
-                Throw $_
-
-            }
+                
             
-
-            # Get details from Registry
-            try
-            {
-
-                # Get Powershell Version
-                $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
-            
-                If ( $RegKeyPSVersion -eq $null )
+                # Open the registry
+                Try
                 {
-            
-                    $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\1\PowerShellEngine")    
-            
+
+                    $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $Computer)
+
+                }
+                Catch
+                {
+
+                    Throw $_
+
                 }
             
-                $ComputerAudit.PSVersion = $RegKeyPSVersion.GetValue("PowerShellVersion")
+
+                # Get details from Registry
+                try
+                {
+
+                    # Get Powershell Version
+                    $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
+            
+                    If ( $RegKeyPSVersion -eq $null )
+                    {
+            
+                        $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\1\PowerShellEngine")    
+            
+                    }
+            
+                    $ComputerAudit.PSVersion = $RegKeyPSVersion.GetValue("PowerShellVersion")
             
                 
-                # Get SMB 1
-                $RegKeySmb1 = $Reg.OpenSubKey("SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters")
+                    # Get SMB 1
+                    $RegKeySmb1 = $Reg.OpenSubKey("SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters")
             
-                If ( $RegKeySmb1 -ne $null )
+                    If ( $RegKeySmb1 -ne $null )
+                    {
+            
+                        $ComputerAudit.SMB1Enabled = $RegKeySmb1.GetValue("SMB1")
+            
+                    }
+                    Else
+                    {
+            
+                        $ComputerAudit.SMB1Enabled = -1
+            
+                    }
+
+                }#EndOfTry
+
+                Catch
                 {
             
-                    $ComputerAudit.SMB1Enabled = $RegKeySmb1.GetValue("SMB1")
-            
-                }
-                Else
-                {
-            
-                    $ComputerAudit.SMB1Enabled = -1
+                    Throw $_
             
                 }
 
-            }#EndOfTry
-
-            Catch
+            } #End the statement "if remote registry service is working"
+            Else
             {
-            
-                Throw $_
-            
+             
+                Write-Warning "Unable to verify if remote registry service is running on '$Computer'. Results do not include information from the registry"
+
             }
 
 
