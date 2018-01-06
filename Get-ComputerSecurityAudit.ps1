@@ -146,12 +146,13 @@ Function Get-ComputerSecurityAudit
                     }
             
                     $ComputerAudit.PSVersion = $RegKeyPSVersion.GetValue("PowerShellVersion")
-            
+                    $RegKeyPSVersion.Close()
                 
                     # Get SMB 1
                     $RegKeySmb1 = $Reg.OpenSubKey("SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters")
                     
                     $Smb1Value = $RegKeySmb1.GetValue("SMB1")
+                    $RegKeySmb1.Close()
             
                     If ( $Smb1Value -ne $null )
                     {
@@ -173,6 +174,14 @@ Function Get-ComputerSecurityAudit
             
                     Throw $_
             
+                }
+                
+                Finally
+                {
+                
+                    $Reg.Close()
+                    $Reg.Dispose()
+                
                 }
 
             } #End the statement "if remote registry service is working"
