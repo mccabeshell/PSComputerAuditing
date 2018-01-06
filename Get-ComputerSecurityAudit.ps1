@@ -150,17 +150,19 @@ Function Get-ComputerSecurityAudit
                 
                     # Get SMB 1
                     $RegKeySmb1 = $Reg.OpenSubKey("SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters")
+                    
+                    $Smb1Value = $RegKeySmb1.GetValue("SMB1")
             
-                    If ( $RegKeySmb1 -ne $null )
+                    If ( $Smb1Value -ne $null )
                     {
             
-                        $ComputerAudit.SMB1Enabled = $RegKeySmb1.GetValue("SMB1")
+                        $ComputerAudit.SMB1Enabled = $Smb1Value
             
                     }
                     Else
                     {
             
-                        $ComputerAudit.SMB1Enabled = -1
+                        $ComputerAudit.SMB1Enabled = 1
             
                     }
 
