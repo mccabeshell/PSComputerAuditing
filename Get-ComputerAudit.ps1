@@ -1,4 +1,4 @@
-Function Get-ComputerSecurityAudit
+Function Get-ComputerAudit
 {
 
     [CmdletBinding()]
@@ -21,8 +21,6 @@ Function Get-ComputerSecurityAudit
             [string]$PSVersion = ''
             [sbyte]$SMB1Enabled = -1
             
-
-
         }
 
     }
