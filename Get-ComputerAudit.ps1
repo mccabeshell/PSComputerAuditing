@@ -4,16 +4,18 @@ Function Get-ComputerAudit
     [CmdletBinding()]
     Param
     (
+
        [Parameter(Position=0)]
        [string[]]$ComputerName = 'localhost'
 
     )
 
-    Begin
+    BEGIN
     {
 
         Class ComputerAudit
         {
+
             [string]$ComputerName
             [string]$LastBootUpTime = ''
             [string]$OperatingSystem = ''
@@ -25,12 +27,11 @@ Function Get-ComputerAudit
 
     }
 
-    Process
+    PROCESS
     {
 
         ForEach ( $Computer in $ComputerName )
         { 
-
 
             ###################################
             # Step 1 - Create computer object #
@@ -44,7 +45,7 @@ Function Get-ComputerAudit
 
                 Write-Error "Cannot connect to computer '$Computer'."
                 Continue
-
+                
             }
             
             #####################################
@@ -203,7 +204,7 @@ Function Get-ComputerAudit
 
     }
 
-    end
+    END
     {
 
         #No action in end block
