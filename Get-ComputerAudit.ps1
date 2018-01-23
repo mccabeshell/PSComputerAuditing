@@ -49,7 +49,7 @@ Function Get-ComputerAudit
             If ( -not (Test-Connection $Computer -Quiet -Count 1) )
             {
 
-                Write-Error "Cannot connect to computer '$Computer'."
+                Write-Error "Cannot connect to target '$Computer'."
                 Continue
                 
             }
@@ -60,6 +60,9 @@ Function Get-ComputerAudit
 
             # Get WMI Properties
             ## At this stage always use Select-Object so that as little is held in memory as possible
+            
+            Write-Verbose "Querying WMI classes on target '$ComputerName'."
+            
             Try
             {
 
@@ -119,6 +122,7 @@ Function Get-ComputerAudit
             Try
             {
             
+                Write-Verbose "Checking status of RemoteRegistry service on target '$ComputerName'."
                 $RRService = Get-Service RemoteRegistry -ComputerName $Computer -ErrorAction Stop
             
             }
@@ -134,15 +138,15 @@ Function Get-ComputerAudit
             If ( ($RRService.Status -eq 'Running') -and ($RemoteRegError -eq 0) )
             {
                 
-            
                 # Open the registry
-                Try
+                try
                 {
 
                     $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $Computer)
+                    Write-Verbose "Connecting to RemoteRegistry on target '$ComputerName'."
 
                 }
-                Catch
+                catch
                 {
 
                     Throw $_
@@ -153,6 +157,8 @@ Function Get-ComputerAudit
                 # Get details from Registry
                 try
                 {
+
+                    Write-Verbose "Querying RemoteRegistry on target '$ComputerName'."
 
                     # Get Powershell Version
                     $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
@@ -188,14 +194,14 @@ Function Get-ComputerAudit
 
                 }#EndOfTry
 
-                Catch
+                catch
                 {
             
                     Throw $_
             
                 }
                 
-                Finally
+                finally
                 {
                 
                     $Reg.Close()
