@@ -18,12 +18,15 @@ Function Get-ComputerAudit
 
             [string]$ComputerName
             [string]$LastBootUpTime = ''
+            [string]$Manufacturer = ''
+            [string]$Model = ''
+            [string]$SerialNumber = ''
             [string]$OperatingSystem = ''
             [string]$OperatingSystemVersion = ''
-            [string]$ServicePack = ''
+            [string]$OSServicePack = ''
             [string]$OSArchitecture = ''
-            [sbyte]$LicenseStatus = -1            
-            [string]$PSVersion = ''
+            [sbyte]$OSLicenseStatus = -1          
+            [string]$PSVersion = '-1'
             [sbyte]$SMB1Enabled = -1
             
         }
@@ -56,16 +59,24 @@ Function Get-ComputerAudit
             #####################################
 
             # Get WMI Properties
+            ## At this stage always use Select-Object so that as little is held in memory as possible
             Try
             {
+
+                ## Win32_ComputerSystem
+                $WmiComputerSystem = Get-WmiObject Win32_ComputerSystem -ErrorAction Stop | Select-Object Manufacturer,Model
+
+                ## Win32_Bios
+                $WmiBios = Get-WmiObject Win32_Bios -ComputerName $Computer -ErrorAction Stop | Select-Object SerialNumber
 
                 ## Win32_OperatingSystem
                 $WmiOsDetails = Get-WmiObject Win32_OperatingSystem -ComputerName $Computer -ErrorAction Stop |
                     Select-Object Caption,Version,ServicePackMajorVersion,OSArchitecture,@{label='LastBootUpTime';expression={$_.ConverttoDateTime($_.lastbootuptime)}}
 
                 ## SoftwareLicensingProduct
-                ## Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
-                $WMISoftwareLicensing = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop
+                ### Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
+                $WMISoftwareLicensing = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop |
+                    Select-Object LicenseStatus
 
             }
             Catch
@@ -79,22 +90,25 @@ Function Get-ComputerAudit
             try
             {
 
+                $ComputerAudit.Manufacturer = $WmiComputerSystem.Manufacturer
+                $ComputerAudit.Model = $WmiComputerSystem.Model
+                $ComputerAudit.SerialNumber = $WmiBios.SerialNumber
                 $ComputerAudit.OperatingSystem = $WmiOSDetails.Caption
                 $ComputerAudit.OperatingSystemVersion = $WmiOSDetails.Version
-                $ComputerAudit.ServicePack = $WmiOSDetails.ServicePackMajorVersion
+                $ComputerAudit.OSServicePack = $WmiOSDetails.ServicePackMajorVersion
                 $ComputerAudit.OSArchitecture = $WmiOSDetails.OSArchitecture
                 $ComputerAudit.LastBootUpTime =  $WmiOSDetails.LastBootUpTime
-                $ComputerAudit.LicenseStatus = $WMISoftwareLicensing.LicenseStatus
+                $ComputerAudit.OSLicenseStatus = $WMISoftwareLicensing.LicenseStatus
 
             }
             catch
             {
              
-                $ComputerAudit.OperatingSystem = ''
-                $ComputerAudit.LastBootUpTime = ''
+                throw $_
 
             }
-                
+
+
             ##############################################
             # Step 3 - Get information from the Registry #
             ##############################################
