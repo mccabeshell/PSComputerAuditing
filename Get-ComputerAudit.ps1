@@ -55,14 +55,17 @@ Function Get-ComputerAudit
             # Step 2 - Get Information from WMI #
             #####################################
 
-            # Get Licence
+            # Get WMI Properties
             Try
             {
 
-                # Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
-                $ComputerAudit.LicenseStatus = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop |
-                    #Where-Object { ($_.PartialProductKey) -and ($_.ApplicationID -eq "55c92734-d682-4d71-983e-d6ec3f16059f") } |
-                        Select-Object -ExpandProperty LicenseStatus
+                ## Win32_OperatingSystem
+                $WmiOsDetails = Get-WmiObject Win32_OperatingSystem -ComputerName $Computer -ErrorAction Stop |
+                    Select-Object Caption,Version,ServicePackMajorVersion,OSArchitecture,@{label='LastBootUpTime';expression={$_.ConverttoDateTime($_.lastbootuptime)}}
+
+                ## SoftwareLicensingProduct
+                ## Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
+                $WMISoftwareLicensing = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop
 
             }
             Catch
@@ -72,19 +75,16 @@ Function Get-ComputerAudit
 
             }
 
-            #Get OS Details
+            # Populate Computer Audit Properties with WMI details
             try
             {
-            
-                $WmiOsDetails = Get-WmiObject Win32_OperatingSystem -ComputerName $Computer -ErrorAction Stop |
-                    Select-Object Caption, Version, ServicePackMajorVersion, OSArchitecture, @{label='LastBootUpTime';expression={$_.ConverttoDateTime($_.lastbootuptime)}}
-
 
                 $ComputerAudit.OperatingSystem = $WmiOSDetails.Caption
                 $ComputerAudit.OperatingSystemVersion = $WmiOSDetails.Version
                 $ComputerAudit.ServicePack = $WmiOSDetails.ServicePackMajorVersion
                 $ComputerAudit.OSArchitecture = $WmiOSDetails.OSArchitecture
                 $ComputerAudit.LastBootUpTime =  $WmiOSDetails.LastBootUpTime
+                $ComputerAudit.LicenseStatus = $WMISoftwareLicensing.LicenseStatus
 
             }
             catch
@@ -218,3 +218,5 @@ Function Get-ComputerAudit
     }
 
 }#EndOfFunction
+
+Get-ComputerAudit
