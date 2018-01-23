@@ -19,6 +19,10 @@ Function Get-ComputerAudit
             [string]$ComputerName
             [string]$LastBootUpTime = ''
             [string]$OperatingSystem = ''
+            [string]$OperatingSystemVersion = ''
+            [string]$BuildNumber = ''
+            [string]$ServicePack = ''
+            [string]$OSArchitecture = ''
             [sbyte]$LicenseStatus = -1            
             [string]$PSVersion = ''
             [sbyte]$SMB1Enabled = -1
