@@ -232,5 +232,3 @@ Function Get-ComputerAudit
     }
 
 }#EndOfFunction
-
-Get-ComputerAudit
