@@ -20,7 +20,6 @@ Function Get-ComputerAudit
             [string]$LastBootUpTime = ''
             [string]$OperatingSystem = ''
             [string]$OperatingSystemVersion = ''
-            [string]$BuildNumber = ''
             [string]$ServicePack = ''
             [string]$OSArchitecture = ''
             [sbyte]$LicenseStatus = -1            
@@ -78,10 +77,13 @@ Function Get-ComputerAudit
             {
             
                 $WmiOsDetails = Get-WmiObject Win32_OperatingSystem -ComputerName $Computer -ErrorAction Stop |
-                    Select-Object Version, @{label='LastBootUpTime';expression={$_.ConverttoDateTime($_.lastbootuptime)}}
+                    Select-Object Caption, Version, ServicePackMajorVersion, OSArchitecture, @{label='LastBootUpTime';expression={$_.ConverttoDateTime($_.lastbootuptime)}}
 
 
-                $ComputerAudit.OperatingSystem =  $WmiOSDetails.Version
+                $ComputerAudit.OperatingSystem = $WmiOSDetails.Caption
+                $ComputerAudit.OperatingSystemVersion = $WmiOSDetails.Version
+                $ComputerAudit.ServicePack = $WmiOSDetails.ServicePackMajorVersion
+                $ComputerAudit.OSArchitecture = $WmiOSDetails.OSArchitecture
                 $ComputerAudit.LastBootUpTime =  $WmiOSDetails.LastBootUpTime
 
             }
