@@ -85,7 +85,7 @@ Function Get-ComputerAudit
             Catch
             {
 
-                $ComputerAudit.LicenseStatus = -1
+                Throw $_
 
             }
 
