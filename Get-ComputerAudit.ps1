@@ -61,7 +61,7 @@ Function Get-ComputerAudit
             # Get WMI Properties
             ## At this stage always use Select-Object so that as little is held in memory as possible
             
-            Write-Verbose "Querying WMI classes on target '$ComputerName'."
+            Write-Verbose "Querying WMI classes on target '$Computer'."
             
             Try
             {
@@ -122,7 +122,7 @@ Function Get-ComputerAudit
             Try
             {
             
-                Write-Verbose "Checking status of RemoteRegistry service on target '$ComputerName'."
+                Write-Verbose "Connecting to RemoteRegistry service on target '$Computer'."
                 $RRService = Get-Service RemoteRegistry -ComputerName $Computer -ErrorAction Stop
             
             }
@@ -143,7 +143,6 @@ Function Get-ComputerAudit
                 {
 
                     $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $Computer)
-                    Write-Verbose "Connecting to RemoteRegistry on target '$ComputerName'."
 
                 }
                 catch
@@ -158,7 +157,7 @@ Function Get-ComputerAudit
                 try
                 {
 
-                    Write-Verbose "Querying RemoteRegistry on target '$ComputerName'."
+                    Write-Verbose "Querying RemoteRegistry on target '$Computer'."
 
                     # Get Powershell Version
                     $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
