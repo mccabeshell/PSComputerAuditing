@@ -85,7 +85,8 @@ Function Get-ComputerAudit
             Catch
             {
 
-                Throw $_
+                Write-Warning $_.Exception.Message
+                Continue
 
             }
 
