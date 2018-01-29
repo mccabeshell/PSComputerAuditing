@@ -85,7 +85,7 @@ Function Get-ComputerAudit
             Catch
             {
 
-                Write-Warning $_.Exception.Message
+                Write-Error $_.Exception.Message
                 Continue
 
             }
@@ -108,7 +108,8 @@ Function Get-ComputerAudit
             catch
             {
              
-                throw $_
+                Write-Error $_.Exception.Message
+                Continue
 
             }
 
@@ -123,7 +124,7 @@ Function Get-ComputerAudit
             Try
             {
             
-                Write-Verbose "Connecting to RemoteRegistry service on target '$Computer'."
+                Write-Error "Connecting to RemoteRegistry service on target '$Computer'."
                 $RRService = Get-Service RemoteRegistry -ComputerName $Computer -ErrorAction Stop
             
             }
@@ -197,7 +198,8 @@ Function Get-ComputerAudit
                 catch
                 {
             
-                    Throw $_
+                    Write-Error $_.Exception.Message
+                    Continue
             
                 }
                 
