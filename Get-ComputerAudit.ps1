@@ -59,7 +59,7 @@ Function Get-ComputerAudit
             #####################################
 
             # Get WMI Properties
-            ## At this stage always use Select-Object so that as little is held in memory as possible
+            # At this stage always use Select-Object so that as little is held in memory as possible
             
             Write-Verbose "Querying WMI classes on target '$Computer'."
             
@@ -69,47 +69,38 @@ Function Get-ComputerAudit
                 ## Win32_ComputerSystem
                 $WmiComputerSystem = Get-WmiObject Win32_ComputerSystem -ErrorAction Stop | Select-Object Manufacturer,Model
 
+                $ComputerAudit.Manufacturer = $WmiComputerSystem.Manufacturer
+                $ComputerAudit.Model = $WmiComputerSystem.Model
+
+
                 ## Win32_Bios
                 $WmiBios = Get-WmiObject Win32_Bios -ComputerName $Computer -ErrorAction Stop | Select-Object SerialNumber
+
+                $ComputerAudit.SerialNumber = $WmiBios.SerialNumber
+
 
                 ## Win32_OperatingSystem
                 $WmiOsDetails = Get-WmiObject Win32_OperatingSystem -ComputerName $Computer -ErrorAction Stop |
                     Select-Object Caption,Version,ServicePackMajorVersion,OSArchitecture,@{label='LastBootUpTime';expression={$_.ConverttoDateTime($_.lastbootuptime)}}
 
-                ## SoftwareLicensingProduct
-                ### Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
-                $WMISoftwareLicensing = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop |
-                    Select-Object LicenseStatus
-
-            }
-            Catch
-            {
-
-                Write-Error $_.Exception.Message
-                Continue
-
-            }
-
-            # Populate Computer Audit Properties with WMI details
-            try
-            {
-
-                $ComputerAudit.Manufacturer = $WmiComputerSystem.Manufacturer
-                $ComputerAudit.Model = $WmiComputerSystem.Model
-                $ComputerAudit.SerialNumber = $WmiBios.SerialNumber
                 $ComputerAudit.OperatingSystem = $WmiOSDetails.Caption
                 $ComputerAudit.OperatingSystemVersion = $WmiOSDetails.Version
                 $ComputerAudit.OSServicePack = $WmiOSDetails.ServicePackMajorVersion
                 $ComputerAudit.OSArchitecture = $WmiOSDetails.OSArchitecture
                 $ComputerAudit.LastBootUpTime =  $WmiOSDetails.LastBootUpTime
+
+                ## SoftwareLicensingProduct
+                ## Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
+                $WMISoftwareLicensing = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop |
+                    Select-Object LicenseStatus
+
                 $ComputerAudit.OSLicenseStatus = $WMISoftwareLicensing.LicenseStatus
 
             }
-            catch
+            Catch
             {
-             
-                Write-Error $_.Exception.Message
-                Continue
+
+                Write-Error $_.Exception.Message -ErrorId $_.FullyQualifiedErrorId
 
             }
 
@@ -118,26 +109,26 @@ Function Get-ComputerAudit
             # Step 3 - Get information from the Registry #
             ##############################################
 
-            $RemoteRegError = 0
+            $RemoteRegError = $null
             
             # Check RemoteRegistry Service
             Try
             {
             
-                Write-Error "Connecting to RemoteRegistry service on target '$Computer'."
+                Write-Verbose "Connecting to RemoteRegistry service on target '$Computer'."
                 $RRService = Get-Service RemoteRegistry -ComputerName $Computer -ErrorAction Stop
             
             }
             Catch
             {
 
-                $RemoteRegError = 1
+                $RemoteRegError = $_
                                 
             }
 
 
 
-            If ( ($RRService.Status -eq 'Running') -and ($RemoteRegError -eq 0) )
+            If ( ($RRService.Status -eq 'Running') -and ($RemoteRegError -ne $null) )
             {
                 
                 # Open the registry
@@ -150,7 +141,7 @@ Function Get-ComputerAudit
                 catch
                 {
 
-                    Throw $_
+                    Write-Error $_.Exception.Message -ErrorId $_.FullyQualifiedErrorId
 
                 }
             
@@ -198,8 +189,7 @@ Function Get-ComputerAudit
                 catch
                 {
             
-                    Write-Error $_.Exception.Message
-                    Continue
+                    Write-Error $_.Exception.Message -ErrorId $_.FullyQualifiedErrorId
             
                 }
                 
@@ -212,10 +202,16 @@ Function Get-ComputerAudit
                 }
 
             } #End the statement "if remote registry service is working"
-            Else
+            ElseIf ($RRService.Status -ne 'Running')
             {
              
-                Write-Warning "Unable to verify if remote registry service is running on '$Computer'. Results do not include information from the registry"
+                Write-Error "Registry service on '$Computer' is not running, its status is '$($RRService.Status)'." -Category InvalidResult
+
+            }
+            ElseIf ($RemoteRegError.Status -ne $null)
+            {
+             
+                Write-Error $RemoteRegError.Exception.Message -ErrorId $RemoteRegError.FullyQualifiedErrorId
 
             }
 
