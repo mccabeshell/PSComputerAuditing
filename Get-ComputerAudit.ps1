@@ -67,7 +67,7 @@ Function Get-ComputerAudit
             {
 
                 ## Win32_ComputerSystem
-                $WmiComputerSystem = Get-WmiObject Win32_ComputerSystem -ErrorAction Stop | Select-Object Manufacturer,Model
+                $WmiComputerSystem = Get-WmiObject Win32_ComputerSystem -ComputerName $Computer -ErrorAction Stop | Select-Object Manufacturer,Model
 
                 $ComputerAudit.Manufacturer = $WmiComputerSystem.Manufacturer
                 $ComputerAudit.Model = $WmiComputerSystem.Model
@@ -128,7 +128,7 @@ Function Get-ComputerAudit
 
 
 
-            If ( ($RRService.Status -eq 'Running') -and ($RemoteRegError -ne $null) )
+            If ( ($RRService.Status -eq 'Running') -and ($RemoteRegError -eq $null) )
             {
                 
                 # Open the registry
