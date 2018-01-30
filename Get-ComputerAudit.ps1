@@ -87,7 +87,7 @@ Function Get-ComputerAudit
                 $ComputerAudit.OperatingSystemVersion = $WmiOSDetails.Version
                 $ComputerAudit.OSServicePack = $WmiOSDetails.ServicePackMajorVersion
                 $ComputerAudit.OSArchitecture = $WmiOSDetails.OSArchitecture
-                $ComputerAudit.LastBootUpTime =  $WmiOSDetails.LastBootUpTime
+                $ComputerAudit.LastBootUpTime =  $WmiOSDetails.LastBootUpTime.ToString()
 
                 ## SoftwareLicensingProduct
                 ## Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
