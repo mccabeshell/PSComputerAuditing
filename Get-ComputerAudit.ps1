@@ -49,7 +49,7 @@ Function Get-ComputerAudit
             If ( -not (Test-Connection $Computer -Quiet -Count 1) )
             {
 
-                Write-Error "Cannot connect to target '$Computer'."
+                Write-Error -Message "Unable to connect to target '$Computer'." -Exception ([System.TimeoutException]::new()) -Category ConnectionError -CategoryTargetName $Computer
                 Continue
                 
             }
