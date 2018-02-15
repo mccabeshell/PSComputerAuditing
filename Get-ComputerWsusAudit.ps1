@@ -4,35 +4,25 @@
 .DESCRIPTION
    Connects to the WSUS server. Will return an object listing all the update states for the computer and a count of how many updates are in each state for the computer.
 .PARAMETER ComputerName
-   The "FullDomainName" of a computer.
-   If joined to a domain, this would be a FQDN (Fully Qualified Domain Name), if in a workgroup then just the computer name should be included without the workgroup name.
+   The name of a computer. By default this will be the FullDomainName or FQDN unless the SwitchOffExactNameMatch switch parameter is used.
+.PARAMETER SwitchOffExactNameMatch
+   If used, this will return any Wsus computer objects whose name conatins the string in the ComputerName parameter. This can return multiple objects per ComputerName.
+   If not used, the cmdlet will only return an exact match and therefore only one object can be output per ComputerName.
 .PARAMETER UpdateClassification
-   The title of an Update Classification. The values input into this parameter are checked against the list of classifications on the update server specified.
-   See notes for an example list and further details.
+   The title of an Update Classification. Only updates in these classifications are returned in the results.
+   If left as default $null, updates for all classifications are included.
+   The values input into this parameter are checked against the list of classifications on the update server specified.
+   To get a list of Update Classifications, use the Powershell cmdlet Get-WsusClassification.
+.PARAMETER IncludeUnapprovedUpdates
+   Updates with a status of either LatestRevisionApproved or HasStaleUpdateApprovals are always included.
+   Using this switch will also include updates that have not been approved or declined.
+   Declined updates are never included in the results of this function.
 .EXAMPLE
     This will return information about all Critical and Security updates for 'computer1' joined to domain 'mccabeshell.com'.
     Get-ComputerWsusAudit 'computer1.mccabeshell.com' -UpdateClassification 'Critical Updates','Security Updates' -UpdateServer 'WSUSSERVER' -PortNumber '8530'
 .EXAMPLE
     This will return information about all Critical and Security updates for computer computer1 if it is in a Workgroup. If it was joined to a domain then an Object not found error would be thrown.
     Get-ComputerWsusAudit 'computer1' -UpdateClassification 'Critical Updates','Security Updates' -UpdateServer 'WSUSSERVER' -PortNumber '8530'
-.NOTES
-   List of Update Classifications. It is possible that these classifications may vary with different versions of WSUS and over time.
-
-   Applications
-   Critical Updates
-   Definition Updates
-   Drivers
-   Feature Packs
-   Security Updates
-   Service Packs
-   Tools
-   Update Rollups
-   Updates
-   Upgrades
-
-   Due to the fact you need to know the exact title, a new cmdlet may be added to the PSComputerAudit repository to get UpdateClassifications.
-   This function already does this to get the list to compare to. It uses the method GetUpdateClassifications, returning objects of "Microsoft.UpdateServices.Internal.BaseApi.UpdateClassification".
-   See link for more details about this method.
 .LINK
     https://msdn.microsoft.com/en-us/library/windows/desktop/ms747071(v=vs.85).aspx
 #>
@@ -44,16 +34,18 @@ Function Get-ComputerWsusAudit
     Param
     (
 
-        [Parameter( Mandatory=$true,
+        [Parameter(Mandatory=$true,
             ValueFromPipeline=$true,
             ValueFromPipelineByPropertyName=$true,
             Position=0)]
         [ValidateNotNullOrEmpty()]
         [string[]]$ComputerName,
 
-        [Parameter(Mandatory=$true)]
-        [ValidateNotNullOrEmpty()]
-        [string[]]$UpdateClassification,
+        [switch]$SwitchOffExactNameMatch,
+
+        [string[]]$UpdateClassification = $null,
+
+        [switch]$IncludeUnapprovedUpdates,
 
         [Parameter(Mandatory=$true)]
         [ValidateNotNullOrEmpty()]
@@ -77,6 +69,7 @@ Function Get-ComputerWsusAudit
             [int16]$DownloadedCount
             [int16]$FailedCount
             [int16]$NotInstalledCount
+            [int16]$TotalNeededCount
         }
 
         ###################
@@ -91,41 +84,49 @@ Function Get-ComputerWsusAudit
         catch
         {
             
-            throw "Unable to connect to WSUS server '$UpdateServer' on port '$PortNumber'."
+            throw $_
                     
         }
         
         
-        #################################
-        # Get and Check Classifications #
-        #################################
+        ##################################
+        # Get then Check Classifications #
+        ##################################
         try
         {
         
             $WsusClassification = $Wsus.GetUpdateClassifications()
-        
-            If ( $UpdateClassification -ne $null )
-            {
-    
-                ForEach ( $UserClassification in $UpdateClassification )
-                {
-                    If ( ($WsusClassification.Title) -notcontains $UserClassification )
-                    {
-    
-                        throw "Update Classification '$UserClassification' cannot be found on Update Server '$($Wsus.Name)'."
-    
-                    }
-                }
-    
-                $Classification = $WsusClassification | Where-Object { $UpdateClassification -contains $_.Title }
-    
-            }
 
         }
         catch
         {
         
             throw $_
+
+        }
+
+    
+        If ( $UpdateClassification -ne $null )
+        {
+
+            ForEach ( $UserClassification in $UpdateClassification )
+            {
+                If ( ($WsusClassification.Title) -notcontains $UserClassification )
+                {
+    
+                    throw [System.ArgumentException] "Update Classification '$UserClassification' cannot be found on Update Server '$($Wsus.Name)'."
+    
+                }
+
+                $Classification = $WsusClassification | Where-Object { $UpdateClassification -contains $_.Title }
+
+            }
+
+        }
+        else
+        {
+
+            $Classification = $WsusClassification
 
         }
         
@@ -137,29 +138,17 @@ Function Get-ComputerWsusAudit
             
             # Set Update Scope
             $UpdateScope = New-Object Microsoft.UpdateServices.Administration.UpdateScope
-            $UpdateScope.ApprovedStates = [Microsoft.UpdateServices.Administration.ApprovedStates]::LatestRevisionApproved
-            $updatescope.IncludedInstallationStates = [Microsoft.UpdateServices.Administration.UpdateInstallationStates]::All
             $updatescope.Classifications.AddRange($Classification)
+            $updatescope.IncludedInstallationStates = [Microsoft.UpdateServices.Administration.UpdateInstallationStates]::All
+            $UpdateScope.ApprovedStates = [Microsoft.UpdateServices.Administration.ApprovedStates]::LatestRevisionApproved
+            $UpdateScope.ApprovedStates += [Microsoft.UpdateServices.Administration.ApprovedStates]::HasStaleUpdateApprovals
 
-            # Set Computer Scope (get all computers)
-            $ComputerScope = New-Object Microsoft.UpdateServices.Administration.ComputerTargetScope
-        
-        }
-        catch
-        {
-            
-            throw $_
-        
-        }
+            If ( $IncludeUnapprovedUpdates )
+            {
 
+                $UpdateScope.ApprovedStates += [Microsoft.UpdateServices.Administration.ApprovedStates]::NotApproved
 
-        #######################################
-        # Fetch all target computer summaries #
-        #######################################
-        try
-        {
-            
-            $AllComputerTargetSummaries = $WSUS.GetSummariesPerComputerTarget($updatescope, $computerscope)
+            }
         
         }
         catch
@@ -176,38 +165,89 @@ Function Get-ComputerWsusAudit
 
         foreach ( $Computer in $ComputerName )
         {
-            
+
+            Write-Verbose "Fetching update summary for target '$Computer' on Update Server '$UpdateServer'"
+
+            ####################################
+            # Fetch  target computer summaries #
+            ####################################
             try
             {
 
-                $ComputerTarget = $Wsus.GetComputerTargetByName($Computer)
-
+                $ComputerScope = New-Object Microsoft.UpdateServices.Administration.ComputerTargetScope
+                $ComputerScope.NameIncludes = $Computer              
+                $ComputerTargetSummaries = $WSUS.GetSummariesPerComputerTarget($updatescope, $computerscope)
+            
             }
-            catch [System.Management.Automation.MethodInvocationException]
+            catch
+            {
+                
+                Write-Error $_
+                continue
+            
+            }
+            
+            # Filter exact match on name
+            if ( -not $SwitchOffExactNameMatch )
             {
 
-                Write-Error $_.Exception.Message
-                continue
+                try
+                {
+
+                    $TargetName = $Wsus.GetComputerTargetByName($Computer)
+                    $ComputerTargetSummaries = $ComputerTargetSummaries | Where-Object { $_.ComputerTargetId -eq $TargetName.Id }
+                    
+                }
+                catch
+                {
+                    
+                    Write-Error $_
+                    continue
+                
+                }
 
             }
-            
-            
-            $ComputerTargetSummary = $AllComputerTargetSummaries | Where-Object { $_.ComputerTargetId -eq $ComputerTarget.Id }
-            
 
-            $ComputerWsusAudit = New-Object ComputerWsusAudit
+            #################################################
+            # Create and output ComputerWsusAudit object(s) #
+            #################################################
+            ForEach ( $Target in $ComputerTargetSummaries )
+            {
+
+                if ( $SwitchOffExactNameMatch )
+                {
+    
+                    try
+                    {
+                     
+                        $TargetName = $Wsus.GetComputerTarget($Target.ComputerTargetId)
+                    
+                    }
+                    catch
+                    {
+
+                        Write-Error $_
+                        continue
+
+                    }
+                }
+
+                $ComputerWsusAudit = New-Object ComputerWsusAudit
             
-                
-            $ComputerWsusAudit.ComputerName = $ComputerTarget.FullDomainName
-            $ComputerWsusAudit.DownloadedCount = $ComputerTargetSummary.DownloadedCount
-            $ComputerWsusAudit.FailedCount = $ComputerTargetSummary.FailedCount
-            $ComputerWsusAudit.InstalledCount = $ComputerTargetSummary.InstalledCount
-            $ComputerWsusAudit.InstalledPendingRebootCount = $ComputerTargetSummary.InstalledPendingRebootCount
-            $ComputerWsusAudit.LastUpdated = $ComputerTargetSummary.LastUpdated
-            $ComputerWsusAudit.NotInstalledCount = $ComputerTargetSummary.NotInstalledCount
-        
-            Write-Output $ComputerWsusAudit
-            Clear-Variable ComputerWsusAudit
+                $ComputerWsusAudit.ComputerName = $TargetName.FullDomainName
+                $ComputerWsusAudit.LastUpdated = $Target.LastUpdated
+                $ComputerWsusAudit.InstalledCount = $Target.InstalledCount
+                $ComputerWsusAudit.InstalledPendingRebootCount = $Target.InstalledPendingRebootCount
+                $ComputerWsusAudit.DownloadedCount = $Target.DownloadedCount
+                $ComputerWsusAudit.FailedCount = $Target.FailedCount
+                $ComputerWsusAudit.NotInstalledCount = $Target.NotInstalledCount
+                $ComputerWsusAudit.TotalNeededCount = $Target.InstalledPendingRebootCount + $Target.DownloadedCount + $Target.FailedCount + $Target.NotInstalledCount
+    
+                Write-Output $ComputerWsusAudit
+                Clear-Variable ComputerWsusAudit
+
+            }
+
 
         }
 
