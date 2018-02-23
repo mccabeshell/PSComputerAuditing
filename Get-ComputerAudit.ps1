@@ -17,6 +17,8 @@ Function Get-ComputerAudit
         {
 
             [string]$ComputerName
+            [string]$IPv4Address = ''
+            [string]$MacAddress = ''
             [string]$LastBootUpTime = ''
             [string]$Manufacturer = ''
             [string]$Model = ''
@@ -46,7 +48,15 @@ Function Get-ComputerAudit
             $ComputerAudit = New-Object -TypeName ComputerAudit
             $ComputerAudit.ComputerName = $Computer
             
-            If ( -not (Test-Connection $Computer -Quiet -Count 1) )
+            $TestConnect = Test-Connection $Computer -Count 1 -ErrorAction SilentlyContinue
+
+            if ( $TestConnect )
+            {
+
+                $ComputerAudit.IPv4Address = $TestConnect.IPV4Address.IPAddressToString
+
+            }
+            else
             {
 
                 Write-Error -Message "Unable to connect to target '$Computer'." -Exception ([System.TimeoutException]::new()) -Category ConnectionError -CategoryTargetName $Computer
@@ -89,12 +99,22 @@ Function Get-ComputerAudit
                 $ComputerAudit.OSArchitecture = $WmiOSDetails.OSArchitecture
                 $ComputerAudit.LastBootUpTime =  $WmiOSDetails.LastBootUpTime.ToString()
 
+
                 ## SoftwareLicensingProduct
                 ## Warning, hardcoded ApplicationId, in tests this always returned OS licence but test was limited to specific environment but run against server OS and client OS
-                $WMISoftwareLicensing = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop |
+                $WmiFilter = "ApplicationId='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL"
+                $WMISoftwareLicensing = Get-WmiObject SoftwareLicensingProduct -ComputerName $Computer -Filter $WmiFilter -ErrorAction Stop |
                     Select-Object LicenseStatus
 
                 $ComputerAudit.OSLicenseStatus = $WMISoftwareLicensing.LicenseStatus
+
+
+                # Win32_NetworkAdapterConfiguration (MAC Address)
+                # Excludes Servicename Netft, which is 'Failover Cluster Virtual Adapter' 
+                $MacAddress = Get-WmiObject Win32_NetworkAdapterConfiguration -ComputerName $Computer -ErrorAction Stop |
+                    Where-Object { ($_.IPEnabled -eq $true) -and ($_.ServiceName -ne 'Netft') } | Select-Object -ExpandProperty MacAddress
+        
+                $ComputerAudit.MacAddress = $MacAddress -join ','
 
             }
             Catch
