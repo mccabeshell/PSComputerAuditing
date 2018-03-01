@@ -225,7 +225,7 @@ Function Get-ComputerAudit
             ElseIf ($RRService.Status -ne 'Running')
             {
              
-                Write-Error "Registry service on '$Computer' is not running, its status is '$($RRService.Status)'." -Category InvalidResult
+                Write-Warning "Registry service on '$Computer' is not running, its status is '$($RRService.Status)'."
 
             }
             ElseIf ($RemoteRegError.Status -ne $null)
