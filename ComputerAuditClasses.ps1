@@ -109,7 +109,16 @@ Class ComputerAudit
         
         # Connect to WSUS Server
         $Wsus = Get-WsusServer -Name $UpdateServer -PortNumber $PortNumber -ErrorAction Stop   
-       
+        $Target = $Wsus.GetComputerTargetByName($this.DNSName)
+        $TargetCount = ($Target | Measure-Object).Count
+
+        If ( $TargetCount -ne 1 )
+        {
+
+            throw [System.ArgumentException] "$TargetCount target computers returned for name '$($this.ComputerName)'. Expecting one."
+
+        }
+
         # Classifications
         $WsusClassification = $Wsus.GetUpdateClassifications()
         $Classification = $null
@@ -143,20 +152,8 @@ Class ComputerAudit
         # Set Update Scope
         $UpdateScope = New-Object Microsoft.UpdateServices.Administration.UpdateScope
         $updatescope.Classifications.AddRange($Classification)
+        ## 3 = LatestRevisionApproved & HasStaleUpdateApprovals
         $UpdateScope.ApprovedStates = New-Object Microsoft.UpdateServices.Administration.ApprovedStates -Property @{value__ = 3}
-        #$UpdateScope.ApprovedStates = [Microsoft.UpdateServices.Administration.ApprovedStates]::LatestRevisionApproved
-        #$UpdateScope.ApprovedStates += [Microsoft.UpdateServices.Administration.ApprovedStates]::HasStaleUpdateApprovals
-
-        # Get Computer
-        $Target = $Wsus.GetComputerTargetByName($this.DNSName)
-        $TargetCount = ($Target | Measure-Object).Count
-
-        If ( $TargetCount -ne 1 )
-        {
-
-            throw [System.ArgumentException] "$TargetCount target computers returned for name '$($this.ComputerName)'. Expecting one."
-
-        }
 
         # Set Computer Scope
         $ComputerScope = New-Object Microsoft.UpdateServices.Administration.ComputerTargetScope
@@ -274,111 +271,64 @@ Class ComputerAudit
         # Step 3 - Get information from the Registry #
         ##############################################
 
-        $RRService = $null
-        $RemoteRegError = $null
         $Reg = $null
-            
-        # Check RemoteRegistry Service
-        Try
+
+        try
         {
             
-            $RRService = Get-Service RemoteRegistry -ComputerName $this.ComputerName -ErrorAction Stop
-            
-        }
-        Catch
-        {
-
-            $RemoteRegError = $_
-                                
-        }
-
-
-
-        If ( ($RRService.Status -eq 'Running') -and ($RemoteRegError -eq $null) )
-        {
-                
             # Open the registry
-            try
+            $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $this.ComputerName)
+
+
+            # Get Powershell Version
+            $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
+            
+            If ( $RegKeyPSVersion -eq $null )
             {
-
-                $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $this.ComputerName)
-
+            
+                $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\1\PowerShellEngine")    
+            
             }
-            catch
-            {
-
-                Write-Error $_.Exception.Message -ErrorId $_.FullyQualifiedErrorId
-
-            }
             
-
-            # Get details from Registry
-            try
-            {
-
-                # Get Powershell Version
-                $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
-            
-                If ( $RegKeyPSVersion -eq $null )
-                {
-            
-                    $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\1\PowerShellEngine")    
-            
-                }
-            
-                $this.PSVersion = $RegKeyPSVersion.GetValue("PowerShellVersion")
-                $RegKeyPSVersion.Close()
+            $this.PSVersion = $RegKeyPSVersion.GetValue("PowerShellVersion")
+            $RegKeyPSVersion.Close()
                 
-                # Get SMB 1
-                $RegKeySmb1 = $Reg.OpenSubKey("SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters")
+            # Get SMB 1
+            $RegKeySmb1 = $Reg.OpenSubKey("SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters")
                     
-                $Smb1Value = $RegKeySmb1.GetValue("SMB1")
-                $RegKeySmb1.Close()
+            $Smb1Value = $RegKeySmb1.GetValue("SMB1")
+            $RegKeySmb1.Close()
             
-                If ( $Smb1Value -ne $null )
-                {
-            
-                    $this.SMB1Enabled = $Smb1Value
-            
-                }
-                Else
-                {
-            
-                    $this.SMB1Enabled = 1
-            
-                }
-
-            }#EndOfTry
-
-            catch
+            If ( $Smb1Value -ne $null )
             {
             
-                Write-Error $_.Exception.Message -ErrorId $_.FullyQualifiedErrorId
+                $this.SMB1Enabled = $Smb1Value
             
             }
-                
-            finally
+            Else
             {
-                
-                $Reg.Close()
-                $Reg.Dispose()
-                
+            
+                $this.SMB1Enabled = 1
+            
             }
 
-        } #End the statement "if remote registry service is working"
-        ElseIf ($RRService.Status -ne 'Running')
-        {
-             
-            Write-Warning "Registry service on '$($this.ComputerName)' is not running, its status is '$($RRService.Status)'."
+        }#EndOfTry
 
-        }
-        ElseIf ($RemoteRegError.Status -ne $null)
+        catch
         {
-             
-            Write-Error $RemoteRegError.Exception.Message -ErrorId $RemoteRegError.FullyQualifiedErrorId
-
+            
+            Write-Error $_.Exception.Message -ErrorId $_.FullyQualifiedErrorId
+            
         }
-     
+                
+        finally
+        {
+                
+            $Reg.Close()
+            $Reg.Dispose()
+                
+        }
+
     }
     
 }
