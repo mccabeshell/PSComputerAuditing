@@ -64,7 +64,8 @@ Function Get-ComputerAudit
                 
             }
             
-            #####################################
+ 
+           #####################################
             # Step 2 - Get Information from WMI #
             #####################################
 
@@ -234,7 +235,6 @@ Function Get-ComputerAudit
                 Write-Error $RemoteRegError.Exception.Message -ErrorId $RemoteRegError.FullyQualifiedErrorId
 
             }
-
 
             #################################
             # Output a ComputerAudit object #
