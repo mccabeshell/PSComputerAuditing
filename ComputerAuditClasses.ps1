@@ -44,27 +44,6 @@ Class ComputerAudit
 
     # Methods
 
-    [void]GetADComputer([string]$ADServer)
-    {
-
-        $ADComputer = Get-ADComputer -Filter "name -eq '$($this.ComputerName)'" -Server $ADServer -Properties lastLogonTimestamp |
-                        Select-Object DNSHostName,Enabled,@{n='LastLogonTime';e={[DateTime]::FromFileTime($_.LastLogonTimeStamp)}}
-
-        $ADComputerCount = ($ADComputer | Measure-Object).Count
-
-        If ( $ADComputerCount -ne 1 )
-        {
-
-            throw [System.ArgumentException] "$ADComputer computers returned for name '$($this.ComputerName)'. Expecting one."
-
-        }
-
-        $this.DNSName = $ADComputer.DNSHostName
-        $this.ADEnabled = $ADComputer.Enabled
-        $this.ADLastLogonTime = $ADComputer.LastLogonTime
-
-    }
-
     [void]GetIPAndOsDataFromAD($ADServer)
     {
     
