@@ -36,6 +36,12 @@ Class ComputerAudit
     [int16]$WsusNotInstalledCount = -1
     [int16]$WsusTotalNeededCount = -1
 
+    # Constructor
+    ComputerAudit ([string]$ComputerName)
+    {
+        $this.ComputerName = $ComputerName
+    }
+
     # Methods
 
     [void]GetADComputer([string]$ADServer)
@@ -58,8 +64,6 @@ Class ComputerAudit
         $this.ADLastLogonTime = $ADComputer.LastLogonTime
 
     }
-
-
 
     [void]GetIPAndOsDataFromAD($ADServer)
     {
@@ -135,7 +139,7 @@ Class ComputerAudit
 
         }
 
-        If ( $UpdateClassification -ne $null )
+        If ( $null -ne $UpdateClassification )
         {
 
             $Classification = $WsusClassification | Where-Object { $UpdateClassification -contains $_.Title }
@@ -283,7 +287,7 @@ Class ComputerAudit
             # Get Powershell Version
             $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
             
-            If ( $RegKeyPSVersion -eq $null )
+            If ( $null -eq $RegKeyPSVersion )
             {
             
                 $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\1\PowerShellEngine")    
@@ -299,7 +303,7 @@ Class ComputerAudit
             $Smb1Value = $RegKeySmb1.GetValue("SMB1")
             $RegKeySmb1.Close()
             
-            If ( $Smb1Value -ne $null )
+            If ( $null -ne $Smb1Value )
             {
             
                 $this.SMB1Enabled = $Smb1Value
