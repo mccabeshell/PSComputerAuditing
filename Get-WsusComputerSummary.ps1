@@ -33,10 +33,15 @@ function Get-WsusComputerSummary
     (
     
         # Params
-        [Parameter]
+        [Parameter(Mandatory=$true)]
         [string]$UpdateServer,
-        [string]$PortNumber = 8530,
+        
+        [Parameter(Mandatory=$true)]
+        [string]$PortNumber = '8530',
+        
+        [Parameter(Mandatory=$true)]
         [string[]]$UpdateClassification
+    
     
     )
 
