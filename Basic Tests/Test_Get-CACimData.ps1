@@ -1,0 +1,1 @@
+Get-CACimData -ComputerName $env:COMPUTERNAME
