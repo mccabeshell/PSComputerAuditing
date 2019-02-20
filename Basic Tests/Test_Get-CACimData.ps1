@@ -1,1 +1,1 @@
-Get-CACimData -ComputerName $env:COMPUTERNAME
+Get-CACimData -ComputerName $env:COMPUTERNAME -Verbose

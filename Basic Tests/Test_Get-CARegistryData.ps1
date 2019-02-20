@@ -1,0 +1,1 @@
+Get-CARegistryData -ComputerName $env:COMPUTERNAME -Verbose

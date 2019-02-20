@@ -22,55 +22,108 @@
 #>
 function Get-CARegistryData
 {
-    [CmdletBinding(DefaultParameterSetName='Parameter Set 1', 
-                  SupportsShouldProcess=$true, 
+    [CmdletBinding(SupportsShouldProcess=$true, 
                   PositionalBinding=$false,
-                  HelpUri = 'http://www.microsoft.com/',
                   ConfirmImpact='Medium')]
-    [Alias()]
-    [OutputType([String])]
-    Param
-    (
-        # Param1 help description
-        [Parameter(Mandatory=$true, 
-                   ValueFromPipeline=$true,
-                   ValueFromPipelineByPropertyName=$true, 
-                   ValueFromRemainingArguments=$false, 
-                   Position=0,
-                   ParameterSetName='Parameter Set 1')]
-        [ValidateNotNull()]
-        [ValidateNotNullOrEmpty()]
-        [ValidateCount(0,5)]
-        [ValidateSet("sun", "moon", "earth")]
-        [Alias("p1")] 
-        $Param1,
 
-        # Param2 help description
-        [Parameter(ParameterSetName='Parameter Set 1')]
-        [AllowNull()]
-        [AllowEmptyCollection()]
-        [AllowEmptyString()]
-        [ValidateScript({$true})]
-        [ValidateRange(0,5)]
-        [int]
-        $Param2,
+   #Requires -Version 3.0
 
-        # Param3 help description
-        [Parameter(ParameterSetName='Another Parameter Set')]
-        [ValidatePattern("[a-z]*")]
-        [ValidateLength(0,15)]
-        [String]
-        $Param3
-    )
+   Param
+   (
+      # Param1 help description
+      [Parameter(Mandatory=$true, 
+                  ValueFromPipeline=$true,
+                  ValueFromPipelineByPropertyName=$true)]
+      [ValidateNotNullOrEmpty()]
+      [string[]]$ComputerName
+
+   )
 
     Begin
     {
+
+
+
     }
     Process
     {
-        if ($pscmdlet.ShouldProcess("Target", "Operation"))
-        {
-        }
+
+      foreach ( $Computer in $ComputerName )
+      {
+
+         $Reg = $null
+
+         try
+         {
+            
+            # Open the registry
+            $Reg = [Microsoft.Win32.RegistryKey]::OpenRemoteBaseKey('LocalMachine', $Computer)
+
+
+            # Get Powershell Version
+            $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\3\PowerShellEngine")
+            
+            If ( $null -eq $RegKeyPSVersion )
+            {
+            
+               $RegKeyPSVersion = $Reg.OpenSubKey("SOFTWARE\Microsoft\PowerShell\1\PowerShellEngine")    
+            
+            }
+            
+            $PSVersion = $RegKeyPSVersion.GetValue("PowerShellVersion")
+            $RegKeyPSVersion.Close()
+               
+            # Get SMB 1
+            $RegKeySmb1 = $Reg.OpenSubKey("SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters")
+                     
+            $Smb1Value = $RegKeySmb1.GetValue("SMB1")
+            $RegKeySmb1.Close()
+            
+            If ( $null -ne $Smb1Value )
+            {
+            
+               $SMB1Enabled = $Smb1Value
+            
+            }
+            Else
+            {
+            
+               $SMB1Enabled = 1
+            
+            }
+
+            $OutputParams = @{
+
+               ComputerName = $Computer;
+               PSVersion = $PSVersion;
+               SMB1Enabled = $SMB1Enabled;
+
+
+            }
+
+            $OutputObject = New-Object -TypeName psobject -ArgumentList $OutputParams
+
+            Write-Output $OutputObject
+
+         }#EndOfTry
+
+         catch
+         {
+            
+            Write-Error $_.Exception.Message -ErrorId $_.FullyQualifiedErrorId
+            
+         }
+               
+         finally
+         {
+               
+            $Reg.Close()
+            $Reg.Dispose()
+               
+         }
+
+      }
+
     }
     End
     {
